@@ -532,6 +532,21 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     }
 
     /**
+     * Set the playback rate for audio player
+     *
+     * @param rate
+     */
+    public void setRate(float rate) {
+        if (this.player != null) {
+            LOG.d(LOG_TAG, "AudioPlayer: Cannot set playback rate.");
+            // this.player.setRate(rate);
+        } else {
+            LOG.d(LOG_TAG, "AudioPlayer Error: Cannot set playback rate until the audio file is initialized.");
+            sendErrorStatus(MEDIA_ERR_NONE_ACTIVE);
+        }
+    }
+
+    /**
      * attempts to put the player in play mode
      * @return true if in playmode, false otherwise
      */
