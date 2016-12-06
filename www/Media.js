@@ -69,6 +69,14 @@ Media.get = function(id) {
     return mediaObjects[id];
 };
 
+Media.forceStop = function () {
+    for (var k in mediaObjects) {
+        mediaObjects[k].stop();
+        mediaObjects[k].release();
+        delete mediaObjects[k];
+    }
+};
+
 function mediaExec (nativeMethod, getOptions, getCallback, getErrorCallback) {
     getCallback = (getCallback || nothing);
     getErrorCallback = (getErrorCallback || nothing);
