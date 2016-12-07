@@ -179,7 +179,9 @@ Media.prototype.resumeRecord = mediaExec("resumeRecordingAudio", id, nothing, de
 /**
  * Release the resources.
  */
-Media.prototype.release = mediaExec("release", id, nothing, defaultErrorCallback);
+Media.prototype.release = mediaExec("release", id, function (self) {
+   delete mediaObjects[self.id];
+}, defaultErrorCallback);
 
 /**
  * Adjust the volume.
