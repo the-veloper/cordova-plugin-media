@@ -37,8 +37,8 @@ var mediaObjects = {};
  * @param statusCallback        The callback to be called when media status has changed.
  *                                  statusCallback(int statusCode) - OPTIONAL
  */
-var Media = function(src, successCallback, errorCallback, statusCallback) {
-    argscheck.checkArgs('sFFF', 'Media', arguments);
+var Media = function(src, successCallback, errorCallback, statusCallback, createdCallback) {
+    argscheck.checkArgs('sFFFF', 'Media', arguments);
     this.id = utils.createUUID();
     mediaObjects[this.id] = this;
     this.src = src;
@@ -47,7 +47,7 @@ var Media = function(src, successCallback, errorCallback, statusCallback) {
     this.statusCallback = statusCallback;
     this._duration = -1;
     this._position = -1;
-    exec(null, this.errorCallback, "Media", "create", [this.id, this.src]);
+    exec(createdCallback, this.errorCallback, "Media", "create", [this.id, this.src]);
 };
 
 // Media messages
@@ -69,39 +69,70 @@ Media.get = function(id) {
     return mediaObjects[id];
 };
 
+Media.forceStop = function () {
+    for (var k in mediaObjects) {
+        mediaObjects[k].stop();
+        mediaObjects[k].release();
+        delete mediaObjects[k];
+    }
+};
+
+function mediaExec (nativeMethod, getOptions, getCallback, getErrorCallback) {
+    getCallback = (getCallback || nothing);
+    getErrorCallback = (getErrorCallback || nothing);
+
+    return function() {
+        var args = Array.prototype.slice.apply(arguments);
+        exec(
+            getCallback(this, args),
+            getErrorCallback(this, args),
+            "Media",
+            nativeMethod,
+            getOptions(this, args));
+    };
+}
+
+function nothing() { return null; }
+function id(self) { return [self.id]; }
+function defaultErrorCallback(self) { return self.errorCallback; }
+
+function oneArgument(player, args){ return [player.id, args[0]];}
+
+function src(player) { return [player.id, player.src];}
+
+function success(player, args) { return args[0]; }
+function fail(player, args) { return args[1]; }
+
 /**
  * Start or resume playing audio file.
  */
-Media.prototype.play = function(options) {
-    exec(null, null, "Media", "startPlayingAudio", [this.id, this.src, options]);
-};
+Media.prototype.play = mediaExec("startPlayingAudio", function(player, args) {
+    return [player.id, player.src, args[1]];
+}, success);
 
 /**
  * Stop playing audio file.
  */
-Media.prototype.stop = function() {
-    var me = this;
-    exec(function() {
-        me._position = 0;
-    }, this.errorCallback, "Media", "stopPlayingAudio", [this.id]);
-};
+Media.prototype.stop = mediaExec(
+    "stopPlayingAudio",
+    id,
+    function(player) { return function() { player._position = 0; }; },
+    defaultErrorCallback);
 
 /**
  * Seek or jump to a new time in the track..
  */
-Media.prototype.seekTo = function(milliseconds) {
-    var me = this;
-    exec(function(p) {
-        me._position = p;
-    }, this.errorCallback, "Media", "seekToAudio", [this.id, milliseconds]);
-};
+Media.prototype.seekTo = mediaExec(
+    "seekToAudio",
+    oneArgument,
+    function(player, args) {return function(p) { player._position = p; args[1](p); };},
+    function(player, args){ return args[2];});
 
 /**
  * Pause playing audio file.
  */
-Media.prototype.pause = function() {
-    exec(null, this.errorCallback, "Media", "pausePlayingAudio", [this.id]);
-};
+Media.prototype.pause = mediaExec(
+    "pausePlayingAudio", id, nothing, defaultErrorCallback);
 
 /**
  * Get duration of an audio file.
@@ -116,75 +147,59 @@ Media.prototype.getDuration = function() {
 /**
  * Get position of audio.
  */
-Media.prototype.getCurrentPosition = function(success, fail) {
-    var me = this;
-    exec(function(p) {
-        me._position = p;
-        success(p);
-    }, fail, "Media", "getCurrentPositionAudio", [this.id]);
-};
+Media.prototype.getCurrentPosition = mediaExec(
+    "getCurrentPositionAudio",
+    id,
+    function(player, args) {return function(p) { player._position = p; args[0](p)}},
+    fail);
 
 /**
  * Start recording audio file.
  */
-Media.prototype.startRecord = function() {
-    exec(null, this.errorCallback, "Media", "startRecordingAudio", [this.id, this.src]);
-};
+Media.prototype.startRecord = mediaExec("startRecordingAudio",
+    src,
+    nothing,
+    defaultErrorCallback);
 
 /**
  * Stop recording audio file.
  */
-Media.prototype.stopRecord = function() {
-    exec(null, this.errorCallback, "Media", "stopRecordingAudio", [this.id]);
-};
+Media.prototype.stopRecord = mediaExec("stopRecordingAudio", id, nothing, defaultErrorCallback);
 
 /**
  * Pause recording audio file.
  */
-Media.prototype.pauseRecord = function() {
-    exec(null, this.errorCallback, "Media", "pauseRecordingAudio", [this.id]);
-};
+Media.prototype.pauseRecord = mediaExec("pauseRecordingAudio", id, nothing, defaultErrorCallback);
 
 /**
 * Resume recording audio file.
 */
-Media.prototype.resumeRecord = function() {
-    exec(null, this.errorCallback, "Media", "resumeRecordingAudio", [this.id]);
-};
+Media.prototype.resumeRecord = mediaExec("resumeRecordingAudio", id, nothing, defaultErrorCallback);
 
 /**
  * Release the resources.
  */
-Media.prototype.release = function() {
-    exec(null, this.errorCallback, "Media", "release", [this.id]);
-};
+Media.prototype.release = mediaExec("release", id, function (self) {
+   delete mediaObjects[self.id];
+}, defaultErrorCallback);
 
 /**
  * Adjust the volume.
  */
-Media.prototype.setVolume = function(volume) {
-    exec(null, null, "Media", "setVolume", [this.id, volume]);
-};
+Media.prototype.setVolume = mediaExec("setVolume", oneArgument);
 
 /**
  * Adjust the playback rate.
  */
-Media.prototype.setRate = function(rate) {
-    if (cordova.platformId === 'ios'){
-        exec(null, null, "Media", "setRate", [this.id, rate]);
-    } else {
-        console.warn('media.setRate method is currently not supported for', cordova.platformId, 'platform.');
-    }
-};
+Media.prototype.setRate = mediaExec("setRate", oneArgument);
 
 /**
  * Get amplitude of audio.
  */
-Media.prototype.getCurrentAmplitude = function(success, fail) {
-    exec(function(p) {
-        success(p);
-    }, fail, "Media", "getCurrentAmplitudeAudio", [this.id]);
-};
+Media.prototype.getCurrentAmplitude = mediaExec("getCurrentAmplitudeAudio",
+    id,
+    success,
+    fail);
 
 /**
  * Audio has status update.
