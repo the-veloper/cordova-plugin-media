@@ -577,7 +577,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 
         BOOL isPlaying = (avPlayer.rate > 0 && !avPlayer.error);
         BOOL isReadyToSeek = (avPlayer.status == AVPlayerStatusReadyToPlay) && (avPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay);
-        float currentPlaybackRate = avPlayer.rate;
 
         // CB-10535:
         // When dealing with remote files, we can get into a situation where we start playing before AVPlayer has had the time to buffer the file to be played.
@@ -587,11 +586,7 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
                  toleranceBefore: kCMTimeZero
                   toleranceAfter: kCMTimeZero
                completionHandler: ^(BOOL finished) {
-                   if (isPlaying) { 
-                       [avPlayer play];
-                       // [avPlayer play] sets the rate to 1, so we need to set it again after seeking
-                       [avPlayer setRate:currentPlaybackRate];
-                   };
+                   if (isPlaying) [avPlayer play];
                }];
         } else {
             NSString* errMsg = @"AVPlayerItem cannot service a seek request with a completion handler until its status is AVPlayerItemStatusReadyToPlay.";
