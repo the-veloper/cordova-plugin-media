@@ -25,6 +25,7 @@ import android.media.MediaPlayer.OnErrorListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.media.MediaRecorder;
 import android.os.Environment;
+import android.os.Build;
 
 import org.apache.cordova.LOG;
 
@@ -130,7 +131,9 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             this.player = null;
         }
         if (this.recorder != null) {
-            this.stopRecording(true);
+            if (this.state != STATE.MEDIA_STOPPED) {
+                this.stopRecording(true);
+            }
             this.recorder.release();
             this.recorder = null;
         }
@@ -197,8 +200,44 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
         if (size == 1) {
             String logMsg = "renaming " + this.tempFile + " to " + file;
             LOG.d(LOG_TAG, logMsg);
+
             File f = new File(this.tempFile);
-            if (!f.renameTo(new File(file))) LOG.e(LOG_TAG, "FAILED " + logMsg);
+            if (!f.renameTo(new File(file))) {
+
+                FileOutputStream outputStream = null;
+                File outputFile = null;
+                try {
+                    outputFile = new File(file);
+                    outputStream = new FileOutputStream(outputFile);
+                    FileInputStream inputStream = null;
+                    File inputFile = null;
+                    try {
+                        inputFile = new File(this.tempFile);
+                        LOG.d(LOG_TAG,  "INPUT FILE LENGTH: " + String.valueOf(inputFile.length()) );
+                        inputStream = new FileInputStream(inputFile);
+                        copy(inputStream, outputStream, false);
+                    } catch (Exception e) {
+                        LOG.e(LOG_TAG, e.getLocalizedMessage(), e);
+                   } finally {
+                        if (inputStream != null) try {
+                            inputStream.close();
+                            inputFile.delete();
+                            inputFile = null;
+                        } catch (Exception e) {
+                            LOG.e(LOG_TAG, e.getLocalizedMessage(), e);
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (outputStream != null) try {
+                        outputStream.close();
+                        LOG.d(LOG_TAG, "OUTPUT FILE LENGTH: " + String.valueOf(outputFile.length()) );
+                    } catch (Exception e) {
+                        LOG.e(LOG_TAG, e.getLocalizedMessage(), e);
+                    }
+                }
+            }
         }
         // more than one file so the user must have pause recording. We'll need to concat files.
         else {
@@ -718,5 +757,21 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             }
         }
         return 0;
+    }
+
+    public void setRate(float speed) {
+        // Check for API 23+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                boolean wasPlaying = this.player.isPlaying();
+                this.player.setPlaybackParams(this.player.getPlaybackParams().setSpeed(speed));
+                if (!wasPlaying && this.player.isPlaying()) {
+                    this.player.pause();
+                }
+            }
+            catch(Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
